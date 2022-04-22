@@ -1,0 +1,45 @@
+\\Formula Dax confecionada no Tabular Editor para calcular a variação de Pontos Percentuais da Medida Selecinada com Orçamento e Receita.
+
+
+VAR RECEITA_LIQUIDA_REAL =
+    CALCULATE (
+        SUM ( FT_Rateios_DRE[Valor_Rateio_DRE] ),
+        FILTER ( ALL ( D_DRE ), D_DRE[DRE_SEQUENCIA] <= "04" ),
+    'D_Calendário'[Ano] = VALUES ( 'D_Calendário_Apoio'[Ano] ),
+    'D_Calendário'[Número Mês] = FILTERS ( 'D_Calendário_Apoio'[Número Mês] ) )
+    
+VAR RECEITA_LIQUIDA_ORC =
+    CALCULATE (
+        SUM ( FT_Metas_Financeiras[VL_RATEIO_META_DRE] ),
+        FILTER ( ALL ( D_DRE ), D_DRE[DRE_SEQUENCIA] <= "04"),
+    'D_Calendário'[Ano] = VALUES ( 'D_Calendário_Apoio'[Ano] ),
+    'D_Calendário'[Número Mês] = FILTERS ( 'D_Calendário_Apoio'[Número Mês] ) )
+    
+    
+VAR MEDIDA_REAL = 
+    CALCULATE (
+    SELECTEDMEASURE (),
+    'D_Calendário'[Ano] = VALUES ( 'D_Calendário_Apoio'[Ano] ),
+    'D_Calendário'[Número Mês] = FILTERS ( 'D_Calendário_Apoio'[Número Mês] )
+)
+
+
+VAR MEDIDA_ORCADO = 
+CALCULATE (
+    SWITCH (SELECTEDMEASURENAME (),
+            "DRE_Realizado", [DRE_Orçado],
+            "Combustivel", [Combustivel_Orc],
+            "Peças", [Peças_Orc],
+            "Pneus", [Pneus_Orc]),
+    'D_Calendário'[Ano] = VALUES ( 'D_Calendário_Apoio'[Ano] ),
+    'D_Calendário'[Número Mês] = FILTERS ( 'D_Calendário_Apoio'[Número Mês] )
+)
+
+VAR REAL =
+    DIVIDE ( MEDIDA_REAL , RECEITA_LIQUIDA_REAL, BLANK () )
+   
+VAR ORCADO =
+    DIVIDE (MEDIDA_ORCADO , RECEITA_LIQUIDA_ORC, BLANK () )
+    
+RETURN
+    ( REAL - ORCADO ) * 100
