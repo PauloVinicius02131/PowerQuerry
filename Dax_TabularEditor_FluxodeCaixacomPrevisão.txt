@@ -1,0 +1,86 @@
+//Formula confeccionada no Tabular Editor para exibir um fluxo de caixa comtemplando realizado e orçado durante o periodo especificado.
+
+
+IF (
+    SELECTEDVALUE ( 'D_Calendário'[Número Mês] )
+        <= SELECTEDVALUE ( 'D_Calendário_Apoio'[Número Mês] ),
+    CALCULATE (
+        SELECTEDMEASURE(),
+        'D_Calendário'[Ano] = VALUES ( 'D_Calendário_Apoio'[Ano] ),
+        'D_Calendário'[Número Mês] <= FILTERS ( 'D_Calendário_Apoio'[Número Mês] )
+    ),
+        CALCULATE (
+        [FC_Previsão_Caixa],
+        'D_Calendário'[Ano] = VALUES ( 'D_Calendário_Apoio'[Ano] ),
+        'D_Calendário'[Número Mês] > FILTERS ( 'D_Calendário_Apoio'[Número Mês] )
+        --,USERELATIONSHIP(D_FC_Plano_De_Contas[COD_FORMAT],FT_Metas_Financeiras[NV4])
+        
+    )
+)
+
+
+//Formula que calcula o caixa conforme planilha de estrutura das contas gerenciais com relacionamento Pai X Filho.
+
+FC_Realizado = SWITCH (
+    SELECTEDVALUE ( D_FC[TP_FC] ),
+    "CAIXA",
+        IF (
+            SELECTEDVALUE ( 'D_Calendário'[Número Mês] ) <= 1,
+            SUM ( FT_Saldo_Caixa[VL_SALDO] ),
+            CALCULATE (
+                CALCULATE (
+                    SUM ( FT_Rateios_FC[Valor_Rateio_DRE] ),
+                    FILTER ( ALL ( D_FC_Plano_De_Contas ), D_FC_Plano_De_Contas[FC_SEQUENCIA] <= "06" ),
+                    FILTER ( ALL ( D_FC ), D_FC[FC_SEQUENCIA] <= "06" )
+                )
+                    + SUM ( FT_Ajuste_Caixa[VL_AJUSTE] )
+                    + SUM ( FT_Saldo_Caixa[VL_SALDO] ),
+                FILTER (
+                    ALL ( 'D_Calendário' ),
+                    'D_Calendário'[Número Mês]
+                        <= ( MAX ( 'D_Calendário'[Número Mês] ) - 1 )
+                        && 'D_Calendário'[Ano] = MAX ( 'D_Calendário'[Ano] )
+                )
+            )
+        ),
+    "A", SUM ( FT_Rateios_FC[Valor_Rateio_DRE] ),
+    "ST",
+        CALCULATE (
+            SUM ( FT_Rateios_FC[Valor_Rateio_DRE] ),
+            FILTER ( ALL ( D_FC ), D_FC[FC_SEQUENCIA] <= MAX ( D_FC[FC_SEQUENCIA] ) )
+        ),
+    "AJUSTE", SUM ( FT_Ajuste_Caixa[VL_AJUSTE] ) + SUM ( FT_Rateios_FC[Valor_Rateio_DRE] ),
+    "SALDOFINAL",
+        IF (
+            SELECTEDVALUE ( 'D_Calendário'[Número Mês] ) <= 1,
+            CALCULATE (
+                SUM ( FT_Rateios_FC[Valor_Rateio_DRE] ),
+                FILTER ( ALL ( D_FC_Plano_De_Contas ), D_FC_Plano_De_Contas[FC_SEQUENCIA] <= MAX ( D_FC_Plano_De_Contas[FC_SEQUENCIA] ) ),
+                FILTER ( ALL ( D_FC ), D_FC[FC_SEQUENCIA] <= MAX ( D_FC[FC_SEQUENCIA] ) )
+            )
+                + SUM ( FT_Ajuste_Caixa[VL_AJUSTE] )
+                + SUM ( FT_Saldo_Caixa[VL_SALDO] ),
+            CALCULATE (
+                SUM ( FT_Rateios_FC[Valor_Rateio_DRE] ),
+                FILTER ( ALL ( D_FC_Plano_De_Contas ), D_FC_Plano_De_Contas[FC_SEQUENCIA] <= MAX ( D_FC_Plano_De_Contas[FC_SEQUENCIA] ) ),
+                FILTER ( ALL ( D_FC ), D_FC[FC_SEQUENCIA] <= MAX ( D_FC[FC_SEQUENCIA] ) )
+            )
+                + SUM ( FT_Ajuste_Caixa[VL_AJUSTE] )
+                + SUM ( FT_Saldo_Caixa[VL_SALDO] )
+                + CALCULATE (
+                    CALCULATE (
+                        SUM ( FT_Rateios_FC[Valor_Rateio_DRE] ),
+                        FILTER ( ALL ( D_FC_Plano_De_Contas ), D_FC_Plano_De_Contas[FC_SEQUENCIA] <= "06" ),
+                        FILTER ( ALL ( D_FC ), D_FC[FC_SEQUENCIA] <= "06" )
+                    )
+                        + SUM ( FT_Ajuste_Caixa[VL_AJUSTE] )
+                        + SUM ( FT_Saldo_Caixa[VL_SALDO] ),
+                    FILTER (
+                        ALL ( 'D_Calendário' ),
+                        'D_Calendário'[Número Mês]
+                            <= ( MAX ( 'D_Calendário'[Número Mês] ) - 1 )
+                            && 'D_Calendário'[Ano] = MAX ( 'D_Calendário'[Ano] )
+                    )
+                )
+        )
+)
