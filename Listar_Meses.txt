@@ -1,0 +1,29 @@
+// Esse código foi desenvolvido com intuito de gerar linhas conforme a quantidade de meses entre duas colunas de uma base de dados.
+//Sua utilização foi para um contador que indicasse a quantidade de meses em que tal funcionário esteve em determinada empresa/filial.
+//Utilizei como referencia o ultimo dia do mês ou o dia em que o código esteja rodando para indicar a saida.
+
+
+Data_Ref_FT_Hts_Filial = Table.TransformColumnTypes(
+        Table.SelectRows(
+          Table.ExpandListColumn(
+            Table.AddColumn(
+              DS_Filial, 
+              "Data_Ref", 
+              each List.Select(
+                List.Dates(
+                  [DT_INICIO_VIGENCIA], 
+                  if Number.From([DT_FIM_VIGENCIA] - [DT_INICIO_VIGENCIA]) + 1 < 0 then
+                    0
+                  else
+                    Number.From([DT_FIM_VIGENCIA] - [DT_INICIO_VIGENCIA]) + 1, 
+                  #duration(1, 0, 0, 0)
+                ), 
+                each _ = Date.From(DateTime.FixedLocalNow()) or _ = Date.EndOfMonth(_)
+              )
+            ), 
+            "Data_Ref"
+          ), 
+          each [Data_Ref] > #date(2018, 11, 30)
+        ), 
+        {"Data_Ref", type date}
+      ), 
