@@ -1,0 +1,142 @@
+//Em alguns casos utilizo tratamentos entre tabelas dimensão e fato dentro do próprio PowerQuerry.
+//Abaixo uma demonstração de junção entre estas tabelas sem utilizar de carregamento total.
+ 
+//Exemplo da Tabela Filial:  
+
+ let
+      Fonte_FT_Filial = Table.TransformColumnTypes(
+        Oracle.Database(
+          "Prod02", 
+          [
+            HierarchicalNavigation = true, 
+            Query
+              = "select#(lf)    h.id_historico_filial,#(lf)    h.id_funcionario,#(lf)    h.id_filial,#(lf)    h.dt_inicio_vigencia,#(lf)    h.dt_fim_vigencia#(lf)#(lf)from vicosa.historico_filial h#(lf)#(lf)inner join vicosa.funcionarios f on (f.id_funcionario = h.id_funcionario)#(lf)#(lf)where f.id_empresa not in ('001', '006', '007', '008', '010', '013', '014', '016', '018', '019', '023', '024', '025', '026', '032', '033', '040', '041', '047', '048', '19', '900', 'TEM')#(lf)and h.dt_fim_vigencia >= to_date('01/01/2019','dd/mm/yyyy')"
+          ]
+        ), 
+        {{"DT_FIM_VIGENCIA", type date}, {"DT_INICIO_VIGENCIA", type date}}
+      ), 
+      D_Filial = Oracle.Database(
+        "Prod02", 
+        [
+          HierarchicalNavigation = true, 
+          Query
+            = "select#(lf)    id_filial,#(lf)    case #(lf)        when cd_filial = '5.2' then '012'#(lf)        when cd_filial = '5.3' then '012'#(lf)        else id_empresa#(lf)    end id_empresa,#(lf)    cd_filial,#(lf)    nm_empresa#(lf)#(lf)from vicosa.cr_filial"
+        ]
+      ), 
+      Filial_Busca = Table.ExpandTableColumn(
+        Table.NestedJoin(
+          Fonte_FT_Filial, 
+          {"ID_FILIAL"}, 
+          D_Filial, 
+          {"ID_FILIAL"}, 
+          "filial", 
+          JoinKind.LeftOuter
+        ), 
+        "filial", 
+        {"CD_FILIAL", "NM_EMPRESA"}, 
+        {"CD_FILIAL", "NM_EMPRESA"}
+      ), 
+      DS_Filial = Table.AddColumn(
+        Filial_Busca, 
+        "DS_FILIAL", 
+        each Text.Combine({[CD_FILIAL], [NM_EMPRESA]}, " - ")
+      ), 
+      Data_Ref_FT_Hts_Filial = Table.TransformColumnTypes(
+        Table.SelectRows(
+          Table.ExpandListColumn(
+            Table.AddColumn(
+              DS_Filial, 
+              "Data_Ref", 
+              each List.Select(
+                List.Dates(
+                  [DT_INICIO_VIGENCIA], 
+                  if Number.From([DT_FIM_VIGENCIA] - [DT_INICIO_VIGENCIA]) + 1 < 0 then
+                    0
+                  else
+                    Number.From([DT_FIM_VIGENCIA] - [DT_INICIO_VIGENCIA]) + 1, 
+                  #duration(1, 0, 0, 0)
+                ), 
+                each _ = Date.From(DateTime.FixedLocalNow()) or _ = Date.EndOfMonth(_)
+              )
+            ), 
+            "Data_Ref"
+          ), 
+          each [Data_Ref] > #date(2018, 11, 30)
+        ), 
+        {"Data_Ref", type date}
+      ), 
+      Chave_FT_Hst_Filial = Table.AddColumn(
+        Data_Ref_FT_Hts_Filial, 
+        "Chave", 
+        each Text.Combine({[ID_FUNCIONARIO], Text.From([Data_Ref])}, "-")
+      )
+    in
+      Chave_FT_Hst_Filial, 
+	  
+//logo abaixo iniciamos um novo le para a tabela Funcionarios dentro do mesmo editor avançado.
+ 
+ TB_Funcionarios = 
+    let
+  Fonte = Table.TransformColumnTypes(
+    Oracle.Database(
+      "Prod02", 
+      [
+        HierarchicalNavigation = true, 
+        Query
+          = "select#(lf)    case#(lf)        when fun.id_funcionario <> '75502' then fun.id_empresa#(lf)        else '17'#(lf)    end id_empresa,#(lf)    fun.nr_cracha,#(lf)    fun.nm_funcionario,#(lf)    fun.dt_nascimento,#(lf)    fun.cs_sexo,#(lf)#(tab)hist.id_funcionario,#(lf)#(tab)hist.dt_inicio_vigencia,#(lf)#(lf)    -- APENAS DATAS FIM DA VIGENCIA ATÉ A DATA ATUAL#(lf)    case #(lf)        when hist.dt_fim_vigencia > sysdate then sysdate#(lf)        else hist.dt_fim_vigencia#(lf)    end dt_fim_vigencia,#(lf)    f.nm_funcao,#(lf)    f.cd_funcao#(lf)#(lf)from vicosa.historico_funcional hist#(lf)#(lf)left join vicosa.funcionarios fun on (fun.id_funcionario = hist.id_funcionario)#(lf)left join vicosa.funcoes f on (f.id_funcao = hist.id_funcao) #(lf)#(lf)where fun.id_empresa not in ('001', '006', '007', '008', '010', '013', '014', '016', '018', '019', '023', '024', '025', '026', '032', '033', '040', '041', '047', '048', '19', '900', 'TEM')#(lf)and hist.dt_fim_vigencia >= to_date('01/01/2019','dd/mm/yyyy')#(lf)and f.cd_funcao <> '00003'#(lf)"
+      ]
+    ), 
+    {{"DT_FIM_VIGENCIA", type date}, {"DT_INICIO_VIGENCIA", type date}}
+   ), 
+  Data_Ref = Table.TransformColumnTypes(
+     Table.SelectRows(
+      Table.ExpandListColumn(
+        Table.AddColumn(
+          Fonte, 
+          "Data_Ref", 
+          each List.Select(
+            List.Dates(
+              [DT_INICIO_VIGENCIA], 
+              if Number.From([DT_FIM_VIGENCIA] - [DT_INICIO_VIGENCIA]) + 1 < 0 then
+                0
+              else
+                Number.From([DT_FIM_VIGENCIA] - [DT_INICIO_VIGENCIA]) + 1, 
+              #duration(1, 0, 0, 0)
+            ), 
+            each _ = Date.From(DateTime.FixedLocalNow()) or _ = Date.EndOfMonth(_)
+          )
+        ), 
+        "Data_Ref"
+      ), 
+      each [Data_Ref] > #date(2018, 11, 30)
+    ), 
+    {"Data_Ref", type date}
+   ), 
+  Chave = Table.AddColumn(
+    Data_Ref, 
+    "Chave", 
+    each Text.Combine({[ID_FUNCIONARIO], Text.From([Data_Ref])}, "-")
+   )
+    in
+    Chave,
+ 
+ //Então as tratativas de Step são inseridas após 
+
+ STP_Busca_Tabela_Filial = Table.TransformColumns(
+    Table.ExpandTableColumn(
+      Table.NestedJoin(
+        STP_ANTERIOR, 
+        {"Chave"}, 
+        TB_FT_Filial, 
+        {"Chave"}, 
+        "Busca_Filial", 
+        JoinKind.LeftOuter
+      ), 
+      "Busca_Filial", 
+      {"DS_FILIAL"}, 
+      {"Busca_Filial.DS_FILIAL"}
+    ), 
+    {"Busca_Filial.DS_FILIAL", each if _ is null then "Não_Encontrada" else _}
+   ), 
+   
+ //Tudo isso dentro de um grande let que engloba todas as tratativas.
