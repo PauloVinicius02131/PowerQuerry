@@ -1,5 +1,5 @@
     #PowerQuerry
-Códigos de ETL em Power Querry
+Códigos com finalidade de ETL em Power Querry
 
 #LinguagemM 
 
